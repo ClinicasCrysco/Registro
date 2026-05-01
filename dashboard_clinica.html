@@ -314,114 +314,122 @@
         renderDetailedTables(); // <--- Aquí activamos la nueva pestaña
     }
 
-    // 3. RENDERIZADO DE TABLAS P&L (LA NUEVA FUNCIÓN)
-    function renderDetailedTables() {
-        const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-        const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-        const currentYear = 2026;
+    // 3. RENDERIZADO DE TABLAS P&L (CORREGIDO: FILTRADO + CATEGORÍAS + TOTALES)
+function renderDetailedTables() {
+    const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const currentYear = 2026;
 
-        const headerHtml = `<th class="p-4 sticky left-0 bg-slate-50 z-10 border-b">Categoría</th>` + 
-            monthNames.map(m => `<th class="p-4 border-b text-center font-black">${m}</th>`).join('') + 
-            `<th class="p-4 border-b bg-slate-100 font-black text-slate-800 text-center">Total</th>`;
-        
-        if(document.getElementById('header-ingresos')) document.getElementById('header-ingresos').innerHTML = headerHtml;
-        if(document.getElementById('header-egresos')) document.getElementById('header-egresos').innerHTML = headerHtml;
-
-        const dataIngresos = {};
-        const dataEgresos = {};
-
-        // Procesar Transacciones
-        // 1. Procesar Transacciones (Corregido para usar la descripción)
-RAW_DATA.forEach(t => {
-    const tYear = t.fecha.substring(0, 4);
-    const tMonth = t.fecha.substring(5, 7);
-    const val = Number(t.monto);
-
-    // SOLUCIÓN: Limpiamos la descripción para obtener el nombre de la categoría
-    // Si la descripción tiene "Carga Masiva: RPN", se convierte en "RPN"
-    let cat = t.descripcion ? t.descripcion.replace('Carga Masiva: ', '') : "Otros";
+    // A. OBTENER FILTRO DE SUCURSAL ACTIVO
+    const activeBranch = document.getElementById('branch-selector').value;
     
-    // Si tienes categorías manuales que ya tienen el nombre correcto, esto las respeta
-    if (t.categoria) cat = t.categoria;
+    // B. FILTRAR DATOS SEGÚN SUCURSAL
+    const detailedFilteredTrans = activeBranch === 'all' 
+        ? RAW_DATA 
+        : RAW_DATA.filter(t => String(t.sucursal_id) === activeBranch);
 
-    if (tYear == currentYear) {
-        if (t.tipo === 'ingreso') {
-            if (!dataIngresos[cat]) dataIngresos[cat] = Array(12).fill(0);
-            dataIngresos[cat][parseInt(tMonth) - 1] += val;
-        } else {
-            if (!dataEgresos[cat]) dataEgresos[cat] = Array(12).fill(0);
-            dataEgresos[cat][parseInt(tMonth) - 1] += val;
+    // Renderizar Cabeceras
+    const headerHtml = `<th class="p-4 sticky left-0 bg-slate-50 z-10 border-b">Categoría</th>` + 
+        monthNames.map(m => `<th class="p-4 border-b text-center font-black">${m}</th>`).join('') + 
+        `<th class="p-4 border-b bg-slate-100 font-black text-slate-800 text-center">Total</th>`;
+    
+    if(document.getElementById('header-ingresos')) document.getElementById('header-ingresos').innerHTML = headerHtml;
+    if(document.getElementById('header-egresos')) document.getElementById('header-egresos').innerHTML = headerHtml;
+
+    const dataIngresos = {};
+    const dataEgresos = {};
+
+    // 1. PROCESAR TRANSACCIONES (Filtradas y con limpieza de descripción)
+    detailedFilteredTrans.forEach(t => {
+        const tYear = t.fecha.substring(0, 4);
+        const tMonth = t.fecha.substring(5, 7);
+        const val = Number(t.monto);
+
+        // Identificar categoría: Limpia prefijo o usa columna categoría si existe
+        let cat = t.descripcion ? t.descripcion.replace('Carga Masiva: ', '') : "Otros";
+        if (t.categoria) cat = t.categoria;
+
+        if (tYear == currentYear) {
+            if (t.tipo === 'ingreso') {
+                if (!dataIngresos[cat]) dataIngresos[cat] = Array(12).fill(0);
+                dataIngresos[cat][parseInt(tMonth) - 1] += val;
+            } else {
+                if (!dataEgresos[cat]) dataEgresos[cat] = Array(12).fill(0);
+                dataEgresos[cat][parseInt(tMonth) - 1] += val;
+            }
         }
-    }
-});
+    });
 
-        // Procesar Costos Fijos
-        FIJOS_DATA.forEach(cf => {
-            const cat = `📌 ${cf.nombre}`;
-            if (!dataEgresos[cat]) dataEgresos[cat] = Array(12).fill(0);
+    // 2. PROCESAR COSTOS FIJOS (Con factor proporcional por sucursal)
+    FIJOS_DATA.forEach(cf => {
+        const cat = `📌 ${cf.nombre}`;
+        if (!dataEgresos[cat]) dataEgresos[cat] = Array(12).fill(0);
+        
+        months.forEach((m, idx) => {
+            const currentPeriod = `${currentYear}-${m}`;
+            const inicio = cf.mes_inicio.substring(0, 7);
+            const fin = cf.mes_fin ? cf.mes_fin.substring(0, 7) : '9999-12';
             
-            months.forEach((m, idx) => {
-                const currentPeriod = `${currentYear}-${m}`;
-                const inicio = cf.mes_inicio.substring(0, 7);
-                const fin = cf.mes_fin ? cf.mes_fin.substring(0, 7) : '9999-12';
-                
-                if (currentPeriod >= inicio && currentPeriod <= fin) {
-                    const activeBranch = document.getElementById('branch-selector').value;
-                    const factor = activeBranch === 'all' ? 1 : 0.50;
-                    dataEgresos[cat][idx] += (Number(cf.monto) * factor);
-                }
-            });
+            if (currentPeriod >= inicio && currentPeriod <= fin) {
+                const factor = activeBranch === 'all' ? 1 : 0.50;
+                dataEgresos[cat][idx] += (Number(cf.monto) * factor);
+            }
         });
+    });
 
-        const fillTable = (containerId, dataSource) => {
-    const tbody = document.getElementById(containerId);
-    if (!tbody) return;
+    // 3. FUNCIÓN INTERNA PARA LLENAR TABLAS Y CALCULAR TOTALES DE COLUMNA
+    const fillTable = (containerId, dataSource) => {
+        const tbody = document.getElementById(containerId);
+        if (!tbody) return;
 
-    const categories = Object.keys(dataSource).sort();
-    const totalsByMonth = Array(12).fill(0);
-    let grandTotal = 0;
+        const categories = Object.keys(dataSource).sort();
+        const totalsByMonth = Array(12).fill(0);
+        let grandTotal = 0;
 
-    // Generar filas de categorías
-    let html = categories.map(cat => {
-        const values = dataSource[cat];
-        const rowTotal = values.reduce((a, b) => a + b, 0);
-        grandTotal += rowTotal;
+        // Generar filas de categorías
+        let html = categories.map(cat => {
+            const values = dataSource[cat];
+            const rowTotal = values.reduce((a, b) => a + b, 0);
+            grandTotal += rowTotal;
 
-        // Sumar a los totales de columna
-        values.forEach((v, i) => totalsByMonth[i] += v);
+            values.forEach((v, i) => totalsByMonth[i] += v);
 
-        return `
-            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                <td class="p-4 font-bold text-slate-700 sticky left-0 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.02)]">${cat}</td>
-                ${values.map(v => `
-                    <td class="p-4 text-center ${v > 0 ? 'text-slate-800' : 'text-slate-300'}">
-                        ${v > 0 ? '$' + v.toLocaleString(undefined, {minimumFractionDigits:0}) : '-'}
+            return `
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td class="p-4 font-bold text-slate-700 sticky left-0 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.02)]">${cat}</td>
+                    ${values.map(v => `
+                        <td class="p-4 text-center ${v > 0 ? 'text-slate-800' : 'text-slate-300'}">
+                            ${v > 0 ? '$' + v.toLocaleString(undefined, {minimumFractionDigits:0}) : '-'}
+                        </td>
+                    `).join('')}
+                    <td class="p-4 text-center bg-slate-50 font-black text-slate-900">$${rowTotal.toLocaleString()}</td>
+                </tr>`;
+        }).join('');
+
+        // AGREGAR FILA DE TOTALES AL FINAL
+        if (categories.length > 0) {
+            html += `
+                <tr class="bg-slate-100/50 font-black text-slate-900 border-t-2 border-slate-200">
+                    <td class="p-4 sticky left-0 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">TOTAL MENSUAL</td>
+                    ${totalsByMonth.map(t => `
+                        <td class="p-4 text-center">
+                            ${t > 0 ? '$' + t.toLocaleString(undefined, {minimumFractionDigits:0}) : '-'}
+                        </td>
+                    `).join('')}
+                    <td class="p-4 text-center bg-slate-200 font-black text-blue-700 text-base">
+                        $${grandTotal.toLocaleString()}
                     </td>
-                `).join('')}
-                <td class="p-4 text-center bg-slate-50 font-black text-slate-900">$${rowTotal.toLocaleString()}</td>
-            </tr>`;
-    }).join('');
+                </tr>`;
+        } else {
+            html = `<tr><td colspan="14" class="p-8 text-center text-slate-400">No hay datos para esta sucursal</td></tr>`;
+        }
 
-    // AGREGAR FILA DE TOTALES AL FINAL
-    html += `
-        <tr class="bg-slate-100/50 font-black text-slate-900 border-t-2 border-slate-200">
-            <td class="p-4 sticky left-0 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">TOTAL MENSUAL</td>
-            ${totalsByMonth.map(t => `
-                <td class="p-4 text-center">
-                    ${t > 0 ? '$' + t.toLocaleString(undefined, {minimumFractionDigits:0}) : '-'}
-                </td>
-            `).join('')}
-            <td class="p-4 text-center bg-slate-200 font-black text-blue-700 text-base">
-                $${grandTotal.toLocaleString()}
-            </td>
-        </tr>`;
+        tbody.innerHTML = html;
+    };
 
-    tbody.innerHTML = html;
-};
-
-        fillTable('body-ingresos', dataIngresos);
-        fillTable('body-egresos', dataEgresos);
-    }
+    fillTable('body-ingresos', dataIngresos);
+    fillTable('body-egresos', dataEgresos);
+}
 
     // --- RESTO DE FUNCIONES (BRANCH TABLE, CHART, CONFIG) ---
     function renderBranchTable(branchMap, months) {
