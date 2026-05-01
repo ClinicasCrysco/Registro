@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clínica - Mobile Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+        .active-tab { color: #2563eb !important; }
+        .active-tab svg { fill: #2563eb; }
+        /* Scrollbar oculto para estética móvil */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans pb-24"> <header class="bg-white p-4 sticky top-0 z-40 border-b border-slate-100 shadow-sm flex justify-between items-center">
+        <h1 class="text-lg font-black text-slate-800 tracking-tight">CLÍNICA FINANZAS</h1>
+        <button onclick="loadDataFromServer()" class="p-2 bg-slate-100 rounded-full">
+            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        </button>
+    </header>
+
+    <main class="p-4 max-w-md mx-auto">
+        <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <select id="branch-selector" onchange="applyFilters()" class="bg-white border-none shadow-sm text-xs font-bold rounded-xl px-4 py-2 outline-none">
+                <option value="all">Selecciona una Sucursal</option>
+                <option value="2">Col. Médica</option>
+                <option value="3">Santa Tecla</option>
+            </select>
+            <select id="month-selector" onchange="setQuickRange('custom-month')" class="bg-white border-none shadow-sm text-xs font-bold rounded-xl px-4 py-2 outline-none">
+                <option value="">📅 Selecciona el mes</option>
+                <option value="01">Enero</option><option value="02">Febrero</option>
+                <option value="03">Marzo</option><option value="04">Abril</option>
+            </select>
+        </div>
+
+        <section id="tab-dashboard" class="tab-content space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-blue-600 p-4 rounded-2xl text-white shadow-lg shadow-blue-100">
+                    <p class="text-[9px] font-bold opacity-80 uppercase">Ventas</p>
+                    <h2 id="kpi-ingresos" class="text-xl font-black">$0.00</h2>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-2xl text-white">
+                    <p class="text-[9px] font-bold opacity-80 uppercase">Gastos</p>
+                    <h2 id="kpi-gastos" class="text-xl font-black">$0.00</h2>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">Utilidad Neta</p>
+                    <h2 id="kpi-neta" class="text-xl font-black text-emerald-600">$0.00</h2>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">IVA (13%)</p>
+                    <h2 id="kpi-iva" class="text-xl font-black text-orange-500">$0.00</h2>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <h3 class="text-xs font-black text-slate-400 mb-4 uppercase">Evolución Ingresos</h3>
+                <div class="h-64">
+                    <canvas id="evolutionChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-tabla" class="tab-content hidden space-y-6">
+            <div>
+                <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+                    <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span> INGRESOS POR CATEGORÍA
+                </h3>
+                <div id="mobile-ingresos-list" class="space-y-2">
+                    </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+                    <span class="w-1.5 h-4 bg-red-500 rounded-full"></span> EGRESOS Y COSTOS FIJOS
+                </h3>
+                <div id="mobile-egresos-list" class="space-y-2">
+                    </div>
+            </div>
+        </section>
+
+        <section id="tab-config" class="tab-content hidden space-y-4">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <h3 class="font-bold text-slate-800 mb-4">Nuevo Costo Fijo</h3>
+                <form id="fixed-cost-form" class="space-y-3">
+                    <input type="text" id="cf-nombre" placeholder="Nombre (ej. Alquiler)" class="w-full bg-slate-50 p-3 rounded-xl text-sm border-none outline-none">
+                    <input type="number" id="cf-monto" placeholder="Monto Mensual $" class="w-full bg-slate-50 p-3 rounded-xl text-sm border-none outline-none">
+                    <div class="flex gap-2">
+                        <input type="date" id="cf-inicio" class="w-1/2 bg-slate-50 p-3 rounded-xl text-xs border-none outline-none">
+                        <button type="submit" class="w-1/2 bg-blue-600 text-white font-bold rounded-xl text-xs shadow-lg shadow-blue-100">Guardar</button>
+                    </div>
+                </form>
+            </div>
+            <div id="costos-list-render" class="space-y-2">
+                </div>
+        </section>
+    </main>
+
+    <a href="registro mobile.html" class="fixed bottom-24 right-6 bg-blue-600 text-white p-4 rounded-2xl shadow-2xl z-50 animate-bounce">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
+    </a>
+
+    <nav class="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-around items-center py-4 px-2 z-50">
+        <button onclick="switchTab('tab-dashboard')" id="btn-tab-dashboard" class="mobile-tab-btn flex flex-col items-center gap-1 active-tab">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+            <span class="text-[10px] font-black uppercase">Resumen</span>
+        </button>
+        <button onclick="switchTab('tab-tabla')" id="btn-tab-tabla" class="mobile-tab-btn flex flex-col items-center gap-1 text-slate-400">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/></svg>
+            <span class="text-[10px] font-black uppercase">Detalle</span>
+        </button>
+        <button onclick="switchTab('tab-config')" id="btn-tab-config" class="mobile-tab-btn flex flex-col items-center gap-1 text-slate-400">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            <span class="text-[10px] font-black uppercase">Ajustes</span>
+        </button>
+    </nav>
+
+    <script>
+    // CONFIGURACIÓN SUPABASE
+    const SB_URL = 'https://zupdtozdvqomfinytkcz.supabase.co';
+    const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1cGR0b3pkdnFvbWZpbnl0a2N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MTQ4OTcsImV4cCI6MjA5MzE5MDg5N30.PI8PmiLUXR_iYugDfbtZKhaZbS-Iv5T9jNLs0XsvY9E';
+    const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+
+    // CACHÉ EN MEMORIA
+    let RAW_DATA = [];
+    let FIJOS_DATA = [];
+    let chartInstance = null;
+
+    // 1. CARGA INICIAL (Descarga todo el 2026 para rapidez móvil)
+    async function loadDataFromServer() {
+        try {
+            const [transRes, fijosRes] = await Promise.all([
+                supabaseClient.from('transacciones').select('*').gte('fecha', '2026-01-01').order('fecha', { ascending: true }),
+                supabaseClient.from('costos_fijos_config').select('*')
+            ]);
+            
+            RAW_DATA = transRes.data || [];
+            FIJOS_DATA = fijosRes.data || [];
+            
+            applyFilters(); 
+        } catch (e) {
+            console.error("Error cargando datos:", e);
+            alert("Error de conexión con Supabase");
+        }
+    }
+
+    // 2. MOTOR DE FILTRADO (Por mes y sucursal)
+    function applyFilters() {
+        const activeBranch = document.getElementById('branch-selector').value;
+        let activeMonth = document.getElementById('month-selector').value;
+        
+        // Si no hay mes seleccionado, usamos el mes actual
+        if (!activeMonth) {
+            const now = new Date();
+            activeMonth = String(now.getMonth() + 1).padStart(2, '0');
+        }
+
+        const currentYear = "2026";
+        const factor = activeBranch === 'all' ? 1 : 0.5;
+
+        // Filtrar datos del mes específico
+        const filteredTrans = RAW_DATA.filter(t => {
+            const matchBranch = (activeBranch === 'all' || String(t.sucursal_id) === activeBranch);
+            const matchMonth = (t.fecha.substring(5,7) === activeMonth);
+            return matchBranch && matchMonth;
+        });
+
+        let totalIn = 0, totalOutVar = 0;
+        const catIn = {}, catOut = {};
+
+        // Procesar transacciones
+        filteredTrans.forEach(t => {
+            const val = Number(t.monto);
+            let cat = t.categoria || t.descripcion.replace('Carga Masiva: ', '');
+            if (t.tipo === 'ingreso') {
+                totalIn += val;
+                catIn[cat] = (catIn[cat] || 0) + val;
+            } else {
+                totalOutVar += val;
+                catOut[cat] = (catOut[cat] || 0) + val;
+            }
+        });
+
+        // Procesar Costos Fijos
+        let totalFijos = 0;
+        FIJOS_DATA.forEach(cf => {
+            const period = `${currentYear}-${activeMonth}`;
+            const inicio = cf.mes_inicio.substring(0,7);
+            const fin = cf.mes_fin ? cf.mes_fin.substring(0,7) : '9999-12';
+            
+            if (period >= inicio && period <= fin) {
+                const montoProporcional = Number(cf.monto) * factor;
+                totalFijos += montoProporcional;
+                catOut[`📌 ${cf.nombre}`] = (catOut[`📌 ${cf.nombre}`] || 0) + montoProporcional;
+            }
+        });
+
+        const iva = totalIn * 0.13;
+        const totalGastos = totalOutVar + totalFijos;
+        const neta = totalIn - iva - totalGastos;
+
+        // Actualizar KPIs en pantalla
+        document.getElementById('kpi-ingresos').innerText = `$${totalIn.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        document.getElementById('kpi-gastos').innerText = `$${totalGastos.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        document.getElementById('kpi-iva').innerText = `-$${iva.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        
+        const netaEl = document.getElementById('kpi-neta');
+        netaEl.innerText = `$${neta.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        netaEl.className = neta >= 0 ? "text-xl font-black text-emerald-600" : "text-xl font-black text-red-600";
+
+        // Renderizar componentes visuales
+        renderMobileCards(catIn, 'mobile-ingresos-list', 'emerald');
+        renderMobileCards(catOut, 'mobile-egresos-list', 'red');
+        renderEvolutionChart(); 
+        renderConfigList();
+    }
+
+    // 3. RENDERIZADO DE COMPONENTES MÓVILES
+    function renderMobileCards(data, containerId, color) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const items = Object.entries(data).sort((a,b) => b[1] - a[1]);
+    
+    // 1. Calculamos el total de los valores en el objeto data
+    const totalValue = items.reduce((acc, curr) => acc + curr[1], 0);
+
+    // 2. Generamos las filas de las categorías
+    let html = items.map(([cat, val]) => `
+        <div class="bg-white p-4 rounded-xl flex justify-between items-center border border-slate-100 shadow-sm">
+            <span class="text-xs font-bold text-slate-600 truncate w-32">${cat}</span>
+            <span class="text-sm font-black text-${color}-600">$${val.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+        </div>
+    `).join('');
+
+    // 3. Si hay datos, agregamos la fila de TOTAL con un diseño resaltado
+    if (items.length > 0) {
+        const label = containerId.includes('ingresos') ? 'TOTAL INGRESOS' : 'TOTAL EGRESOS';
+        
+        html += `
+            <div class="bg-${color}-50 p-4 rounded-2xl flex justify-between items-center border-2 border-${color}-100 shadow-md mt-4 mb-6">
+                <span class="text-xs font-black text-${color}-800 uppercase tracking-tight">${label}</span>
+                <span class="text-lg font-black text-${color}-700">$${totalValue.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+            </div>
+        `;
+    } else {
+        html = `<p class="text-center text-xs text-slate-400 py-8">No hay registros este mes</p>`;
+    }
+
+    container.innerHTML = html;
+}
+
+    function renderEvolutionChart() {
+        const ctx = document.getElementById('evolutionChart');
+        if (!ctx) return;
+        
+        // Agrupamos utilidad por mes para el gráfico
+        const labels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
+        const utilidades = labels.map((_, i) => {
+            const m = String(i + 1).padStart(2, '0');
+            const transMes = RAW_DATA.filter(t => t.fecha.substring(5,7) === m);
+            const inMes = transMes.filter(t => t.tipo === 'ingreso').reduce((a, b) => a + Number(b.monto), 0);
+            return inMes * 0.5; // Estimación simple para el gráfico de tendencia
+        });
+
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: utilidades,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    x: { grid: { display: false } },
+                    y: { ticks: { display: false }, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    function renderConfigList() {
+        const list = document.getElementById('costos-list-render');
+        if (!list) return;
+        list.innerHTML = FIJOS_DATA.map(cf => `
+            <div class="bg-white p-3 rounded-xl flex justify-between items-center shadow-sm border border-slate-50">
+                <div>
+                    <p class="text-xs font-bold text-slate-700">${cf.nombre}</p>
+                    <p class="text-[9px] text-slate-400">Desde: ${cf.mes_inicio}</p>
+                </div>
+                <span class="text-xs font-black text-blue-600">$${Number(cf.monto).toLocaleString()}</span>
+            </div>`).join('');
+    }
+
+    // 4. NAVEGACIÓN Y UTILIDADES
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById(tabId).classList.remove('hidden');
+        document.querySelectorAll('.mobile-tab-btn').forEach(b => b.classList.remove('active-tab', 'text-blue-600'));
+        const btn = document.getElementById('btn-' + tabId);
+        if (btn) btn.classList.add('active-tab');
+    }
+
+    function setQuickRange(type) {
+        // En móvil usamos applyFilters directamente al cambiar el selector
+        applyFilters();
+    }
+
+    // INICIO
+    document.addEventListener('DOMContentLoaded', loadDataFromServer);
+</script>
+</body>
+</html>
