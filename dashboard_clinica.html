@@ -1,0 +1,547 @@
+<!-- Código Final: Fase 4 - Optimización y Memoria -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Clínica - Optimización y Rendimiento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-slate-100 p-4 md:p-8 font-sans">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="bg-white p-6 rounded-t-2xl border-b border-slate-100 shadow-sm">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-800 uppercase tracking-tight">Clínica: Control Financiero</h1>
+                    
+                </div>
+                <a href="registro.html" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold">
+    + Nuevo Registro
+</a>
+                <nav class="flex bg-slate-100 p-1 rounded-xl">
+    <button onclick="switchTab('tab-dashboard')" id="btn-tab-dashboard" class="tab-btn px-4 py-2 rounded-lg text-sm font-bold transition-all bg-white shadow-sm text-blue-600">📈 Dashboard</button>
+    <!-- Nueva Pestaña -->
+    <button onclick="switchTab('tab-tabla')" id="btn-tab-tabla" class="tab-btn px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">📋 Tabla</button>
+    <button onclick="switchTab('tab-sucursales')" id="btn-tab-sucursales" class="tab-btn px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">🏥 Sucursales</button>
+    <button onclick="switchTab('tab-config')" id="btn-tab-config" class="tab-btn px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">⚙️ Configuración</button>
+</nav>
+            </div>
+        </header>
+
+        <main class="bg-white p-6 rounded-b-2xl shadow-sm min-h-[600px]">
+            <!-- CONTROLES MAESTROS -->
+            <div id="master-controls" class="bg-slate-50 p-4 rounded-2xl mb-8 flex flex-wrap items-center gap-4 border border-slate-100">
+                <div class="flex items-center gap-2">
+                    <label class="text-[10px] font-black uppercase text-slate-400">Sucursal:</label>
+                    <!-- applyFilters() es instantáneo porque usa la memoria -->
+                    <select id="branch-selector" onchange="applyFilters()" class="border p-1.5 rounded-lg text-xs font-bold text-slate-600 bg-white outline-none focus:ring-2 focus:ring-blue-100">
+                        <option value="all">Todas las Sucursales</option>
+                        <option value="2">Colonia Médica</option>
+                        <option value="3">Santa Tecla</option>
+                    </select>
+                </div>
+                <div class="h-6 w-[1px] bg-slate-200 hidden md:block"></div>
+                <div class="flex items-center gap-2">
+                    <label class="text-[10px] font-black uppercase text-slate-400">Rango:</label>
+                    <input type="date" id="date-from" class="border p-1.5 rounded-lg text-xs font-bold text-slate-600">
+                    <input type="date" id="date-to" class="border p-1.5 rounded-lg text-xs font-bold text-slate-600">
+                    <!-- loadDataFromServer() solo cuando el rango de fechas cambia -->
+                    <button onclick="loadDataFromServer()" class="bg-slate-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-black transition-all">Refrescar Datos</button>
+                </div>
+                <div id="loading-indicator" class="hidden text-[10px] font-bold text-blue-500 animate-pulse">CARGANDO DE SUPABASE...</div>
+            </div>
+
+            <!-- PESTAÑA 1: DASHBOARD -->
+<section id="tab-dashboard" class="tab-content">
+    <!-- Selectores Rápidos de Fecha -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <select id="month-selector" onchange="setQuickRange('custom-month')" class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none hover:border-blue-200 transition-all shadow-sm">
+        <option value="">📅 Seleccionar Mes</option>
+        <option value="01">Enero</option>
+        <option value="02">Febrero</option>
+        <option value="03">Marzo</option>
+        <option value="04">Abril</option>
+        <option value="05">Mayo</option>
+        <option value="06">Junio</option>
+        <option value="07">Julio</option>
+        <option value="08">Agosto</option>
+        <option value="09">Septiembre</option>
+        <option value="10">Octubre</option>
+        <option value="11">Noviembre</option>
+        <option value="12">Diciembre</option>
+    </select>
+        <button onclick="setQuickRange('month')" class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">Este Mes</button>
+        <button onclick="setQuickRange('year')" class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">Este Año</button>
+        <button onclick="setQuickRange('all')" class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">Todo el Tiempo</button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-blue-50 p-5 rounded-2xl border-b-4 border-blue-500 text-center">
+            <p class="text-[10px] text-blue-400 font-black uppercase mb-1">Ventas Totales</p>
+            <h2 id="kpi-ingresos" class="text-2xl font-black text-blue-800">$0.00</h2>
+        </div>
+        <div class="bg-orange-50 p-5 rounded-2xl border-b-4 border-orange-400 text-center">
+            <p class="text-[10px] text-orange-400 font-black uppercase mb-1">IVA Retenido (13%)</p>
+            <h2 id="kpi-iva" class="text-2xl font-black text-orange-600">$0.00</h2>
+        </div>
+        <div class="bg-red-50 p-5 rounded-2xl border-b-4 border-red-500 text-center">
+            <p class="text-[10px] text-red-400 font-black uppercase mb-1">Egresos Totales</p>
+            <h2 id="kpi-gastos" class="text-2xl font-black text-red-800">$0.00</h2>
+        </div>
+        <div class="bg-emerald-50 p-5 rounded-2xl border-b-4 border-emerald-500 text-center">
+            <p class="text-[10px] text-emerald-400 font-black uppercase mb-1">Utilidad Real</p>
+            <h2 id="kpi-neta" class="text-2xl font-black text-emerald-800">$0.00</h2>
+        </div>
+    </div>
+
+    <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+        <div class="h-[300px] w-full">
+            <canvas id="evolutionChart"></canvas>
+        </div>
+    </div>
+</section>
+
+            <!-- PESTAÑA 2: SUCURSALES -->
+            <section id="tab-sucursales" class="tab-content hidden">
+                <div class="overflow-hidden rounded-2xl border border-slate-100">
+                    <table class="w-full text-left bg-white">
+                        <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase">
+                            <tr>
+                                <th class="p-4">Sucursal</th>
+                                <th class="p-4">Ingresos Brutos</th>
+                                <th class="p-4">IVA (13%)</th>
+                                <th class="p-4">Egresos</th>
+                                <th class="p-4">Utilidad Neta</th>
+                                <th class="p-4">Margen %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="branches-table-body" class="text-sm"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- PESTAÑA 3: CONFIGURACIÓN -->
+<section id="tab-config" class="tab-content hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Formulario para Agregar/Modificar -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <h3 class="font-bold text-slate-800 mb-1 tracking-tight">Gestionar Estructura de Costos</h3>
+            <p class="text-xs text-slate-500 mb-6">Define costos que se aplican automáticamente cada mes.</p>
+            
+            <form id="fixed-cost-form" class="space-y-4">
+                <input type="hidden" id="cf-id">
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Nombre del Gasto</label>
+                    <input type="text" id="cf-nombre" placeholder="Ej. Alquiler Local" class="w-full border border-slate-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" required>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Monto Mensual ($)</label>
+                    <input type="number" step="0.01" id="cf-monto" placeholder="0.00" class="w-full border border-slate-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Desde (Fecha)</label>
+                        <input type="date" id="cf-inicio" class="w-full border border-slate-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" required>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Hasta (Opcional)</label>
+                        <input type="date" id="cf-fin" class="w-full border border-slate-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">Guardar en Base de Datos</button>
+                <button type="button" onclick="resetCFForm()" class="w-full text-slate-400 text-xs font-bold py-1">Limpiar Formulario</button>
+            </form>
+        </div>
+
+        <!-- Lista de Costos Actuales -->
+        <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+            <h3 class="font-bold text-slate-800 mb-4 tracking-tight">Costos Fijos Registrados</h3>
+            <div id="costos-list-render" class="space-y-3">
+                <!-- Se llena desde JS -->
+            </div>
+        </div>
+    </div>
+</section>
+<!-- PESTAÑA 4: VISTA DE TABLA DETALLADA -->
+<section id="tab-tabla" class="tab-content hidden">
+    <div class="space-y-12">
+        <!-- Tabla de Ingresos -->
+        <div>
+            <h3 class="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
+                <span class="w-2 h-6 bg-emerald-500 rounded-full"></span> 
+                DESGLOSE MENSUAL DE INGRESOS (2026)
+            </h3>
+            <div class="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
+                <table class="w-full text-left bg-white border-collapse">
+                    <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase">
+                        <tr id="header-ingresos">
+                            <th class="p-4 sticky left-0 bg-slate-50 z-10 border-b">Categoría</th>
+                            <!-- Los meses se insertan vía JS -->
+                        </tr>
+                    </thead>
+                    <tbody id="body-ingresos" class="text-xs font-medium text-slate-600"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tabla de Egresos -->
+        <div>
+            <h3 class="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
+                <span class="w-2 h-6 bg-red-500 rounded-full"></span> 
+                DESGLOSE MENSUAL DE EGRESOS Y COSTOS FIJOS
+            </h3>
+            <div class="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
+                <table class="w-full text-left bg-white border-collapse">
+                    <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase">
+                        <tr id="header-egresos">
+                            <th class="p-4 sticky left-0 bg-slate-50 z-10 border-b">Categoría</th>
+                            <!-- Los meses se insertan vía JS -->
+                        </tr>
+                    </thead>
+                    <tbody id="body-egresos" class="text-xs font-medium text-slate-600"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+        </main>
+    </div>
+
+    <script>
+    // CONFIGURACIÓN SUPABASE
+    const SB_URL = 'https://zupdtozdvqomfinytkcz.supabase.co';
+    const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1cGR0b3pkdnFvbWZpbnl0a2N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MTQ4OTcsImV4cCI6MjA5MzE5MDg5N30.PI8PmiLUXR_iYugDfbtZKhaZbS-Iv5T9jNLs0XsvY9E';
+    const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+
+    // CACHÉ EN MEMORIA
+    let RAW_DATA = [];
+    let FIJOS_DATA = [];
+    let chartInstance = null;
+
+    const SUC_NOMBRES = { "2": "Colonia Médica", "3": "Santa Tecla" };
+
+    // 1. CARGA INICIAL
+    async function loadDataFromServer() {
+        const loader = document.getElementById('loading-indicator');
+        if (loader) loader.classList.remove('hidden');
+
+        const from = document.getElementById('date-from').value;
+        const to = document.getElementById('date-to').value;
+
+        try {
+            const [transRes, fijosRes] = await Promise.all([
+                supabaseClient.from('transacciones').select('*').gte('fecha', from).lte('fecha', to).order('fecha', { ascending: true }),
+                supabaseClient.from('costos_fijos_config').select('*')
+            ]);
+
+            RAW_DATA = transRes.data || [];
+            FIJOS_DATA = fijosRes.data || [];
+            
+            applyFilters(); 
+        } catch (e) {
+            console.error("Error cargando datos:", e);
+        } finally {
+            if (loader) loader.classList.add('hidden');
+        }
+    }
+
+    // 2. MOTOR DE CÁLCULO
+    function applyFilters() {
+        const activeBranch = document.getElementById('branch-selector').value;
+        const factorSucursal = activeBranch === 'all' ? 1 : 0.50; 
+
+        const filteredTrans = activeBranch === 'all' 
+            ? RAW_DATA 
+            : RAW_DATA.filter(t => t.sucursal_id == activeBranch);
+
+        const monthlyMap = {};
+        const branchMap = { "2": { in: 0, out: 0 }, "3": { in: 0, out: 0 } };
+
+        filteredTrans.forEach(t => {
+            const val = Number(t.monto);
+            const month = t.fecha.substring(0, 7);
+            const sucId = String(t.sucursal_id); 
+
+            if (!monthlyMap[month]) monthlyMap[month] = { in: 0, outVar: 0 };
+            
+            if (branchMap[sucId]) {
+                if (t.tipo === 'ingreso') {
+                    monthlyMap[month].in += val;
+                    branchMap[sucId].in += val;
+                } else {
+                    monthlyMap[month].outVar += val;
+                    branchMap[sucId].out += val;
+                }
+            }
+        });
+
+        let finalIn = 0, finalOut = 0, finalIva = 0;
+        const months = Object.keys(monthlyMap).sort();
+
+        months.forEach(m => {
+            const d = monthlyMap[m];
+            const fijosDelMes = FIJOS_DATA.reduce((acc, cf) => {
+                const inicio = cf.mes_inicio.substring(0, 7);
+                const fin = cf.mes_fin ? cf.mes_fin.substring(0, 7) : '9999-12';
+                if (m >= inicio && m <= fin) return acc + Number(cf.monto);
+                return acc;
+            }, 0);
+
+            const gastosFijosProporcionales = fijosDelMes * factorSucursal;
+            finalIn += d.in;
+            finalOut += (d.outVar + gastosFijosProporcionales);
+            finalIva += (d.in * 0.13);
+        });
+
+        const finalNeta = finalIn - finalIva - finalOut;
+
+        // Actualizar UI
+        document.getElementById('kpi-ingresos').innerText = `$${finalIn.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        document.getElementById('kpi-iva').innerText = `-$${finalIva.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        document.getElementById('kpi-gastos').innerText = `$${finalOut.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        
+        const netaEl = document.getElementById('kpi-neta');
+        netaEl.innerText = `$${finalNeta.toLocaleString(undefined, {minimumFractionDigits:2})}`;
+        netaEl.className = finalNeta >= 0 ? "text-2xl font-black text-emerald-800" : "text-2xl font-black text-red-600";
+
+        // Refrescar Visuales
+        renderBranchTable(branchMap, months);
+        renderEvolutionChart(months, monthlyMap, factorSucursal);
+        renderConfigList();
+        renderDetailedTables(); // <--- Aquí activamos la nueva pestaña
+    }
+
+    // 3. RENDERIZADO DE TABLAS P&L (LA NUEVA FUNCIÓN)
+    function renderDetailedTables() {
+        const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+        const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        const currentYear = 2026;
+
+        const headerHtml = `<th class="p-4 sticky left-0 bg-slate-50 z-10 border-b">Categoría</th>` + 
+            monthNames.map(m => `<th class="p-4 border-b text-center font-black">${m}</th>`).join('') + 
+            `<th class="p-4 border-b bg-slate-100 font-black text-slate-800 text-center">Total</th>`;
+        
+        if(document.getElementById('header-ingresos')) document.getElementById('header-ingresos').innerHTML = headerHtml;
+        if(document.getElementById('header-egresos')) document.getElementById('header-egresos').innerHTML = headerHtml;
+
+        const dataIngresos = {};
+        const dataEgresos = {};
+
+        // Procesar Transacciones
+        // 1. Procesar Transacciones (Corregido para usar la descripción)
+RAW_DATA.forEach(t => {
+    const tYear = t.fecha.substring(0, 4);
+    const tMonth = t.fecha.substring(5, 7);
+    const val = Number(t.monto);
+
+    // SOLUCIÓN: Limpiamos la descripción para obtener el nombre de la categoría
+    // Si la descripción tiene "Carga Masiva: RPN", se convierte en "RPN"
+    let cat = t.descripcion ? t.descripcion.replace('Carga Masiva: ', '') : "Otros";
+    
+    // Si tienes categorías manuales que ya tienen el nombre correcto, esto las respeta
+    if (t.categoria) cat = t.categoria;
+
+    if (tYear == currentYear) {
+        if (t.tipo === 'ingreso') {
+            if (!dataIngresos[cat]) dataIngresos[cat] = Array(12).fill(0);
+            dataIngresos[cat][parseInt(tMonth) - 1] += val;
+        } else {
+            if (!dataEgresos[cat]) dataEgresos[cat] = Array(12).fill(0);
+            dataEgresos[cat][parseInt(tMonth) - 1] += val;
+        }
+    }
+});
+
+        // Procesar Costos Fijos
+        FIJOS_DATA.forEach(cf => {
+            const cat = `📌 ${cf.nombre}`;
+            if (!dataEgresos[cat]) dataEgresos[cat] = Array(12).fill(0);
+            
+            months.forEach((m, idx) => {
+                const currentPeriod = `${currentYear}-${m}`;
+                const inicio = cf.mes_inicio.substring(0, 7);
+                const fin = cf.mes_fin ? cf.mes_fin.substring(0, 7) : '9999-12';
+                
+                if (currentPeriod >= inicio && currentPeriod <= fin) {
+                    const activeBranch = document.getElementById('branch-selector').value;
+                    const factor = activeBranch === 'all' ? 1 : 0.50;
+                    dataEgresos[cat][idx] += (Number(cf.monto) * factor);
+                }
+            });
+        });
+
+        const fillTable = (containerId, dataSource) => {
+    const tbody = document.getElementById(containerId);
+    if (!tbody) return;
+
+    const categories = Object.keys(dataSource).sort();
+    const totalsByMonth = Array(12).fill(0);
+    let grandTotal = 0;
+
+    // Generar filas de categorías
+    let html = categories.map(cat => {
+        const values = dataSource[cat];
+        const rowTotal = values.reduce((a, b) => a + b, 0);
+        grandTotal += rowTotal;
+
+        // Sumar a los totales de columna
+        values.forEach((v, i) => totalsByMonth[i] += v);
+
+        return `
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                <td class="p-4 font-bold text-slate-700 sticky left-0 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.02)]">${cat}</td>
+                ${values.map(v => `
+                    <td class="p-4 text-center ${v > 0 ? 'text-slate-800' : 'text-slate-300'}">
+                        ${v > 0 ? '$' + v.toLocaleString(undefined, {minimumFractionDigits:0}) : '-'}
+                    </td>
+                `).join('')}
+                <td class="p-4 text-center bg-slate-50 font-black text-slate-900">$${rowTotal.toLocaleString()}</td>
+            </tr>`;
+    }).join('');
+
+    // AGREGAR FILA DE TOTALES AL FINAL
+    html += `
+        <tr class="bg-slate-100/50 font-black text-slate-900 border-t-2 border-slate-200">
+            <td class="p-4 sticky left-0 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">TOTAL MENSUAL</td>
+            ${totalsByMonth.map(t => `
+                <td class="p-4 text-center">
+                    ${t > 0 ? '$' + t.toLocaleString(undefined, {minimumFractionDigits:0}) : '-'}
+                </td>
+            `).join('')}
+            <td class="p-4 text-center bg-slate-200 font-black text-blue-700 text-base">
+                $${grandTotal.toLocaleString()}
+            </td>
+        </tr>`;
+
+    tbody.innerHTML = html;
+};
+
+        fillTable('body-ingresos', dataIngresos);
+        fillTable('body-egresos', dataEgresos);
+    }
+
+    // --- RESTO DE FUNCIONES (BRANCH TABLE, CHART, CONFIG) ---
+    function renderBranchTable(branchMap, months) {
+        const tbody = document.getElementById('branches-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = Object.keys(branchMap).map(id => {
+            const d = branchMap[id];
+            const iva = d.in * 0.13;
+            let fijosAcum = 0;
+            months.forEach(m => {
+                const fMes = FIJOS_DATA.reduce((acc, cf) => {
+                    const ini = cf.mes_inicio.substring(0, 7);
+                    const fin = cf.mes_fin ? cf.mes_fin.substring(0, 7) : '9999-12';
+                    return (m >= ini && m <= fin) ? acc + Number(cf.monto) : acc;
+                }, 0);
+                fijosAcum += (fMes * 0.50);
+            });
+            const totalOut = d.out + fijosAcum;
+            const neta = d.in - iva - totalOut;
+            const margen = d.in > 0 ? (neta / d.in) * 100 : 0;
+            return `
+                <tr class="border-b border-slate-50 hover:bg-slate-50">
+                    <td class="p-4 font-bold text-slate-700">${SUC_NOMBRES[id]}</td>
+                    <td class="p-4 text-slate-600">$${d.in.toLocaleString()}</td>
+                    <td class="p-4 text-orange-500">-$${iva.toLocaleString()}</td>
+                    <td class="p-4 text-red-400">$${totalOut.toLocaleString()}</td>
+                    <td class="p-4 font-black ${neta >= 0 ? 'text-emerald-600' : 'text-red-600'}">$${neta.toLocaleString()}</td>
+                    <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${margen > 20 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}">${margen.toFixed(1)}%</span></td>
+                </tr>`;
+        }).join('');
+    }
+
+    function renderEvolutionChart(labels, monthlyMap, factor) {
+        const ctx = document.getElementById('evolutionChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        const datasets = {
+            in: labels.map(m => monthlyMap[m].in),
+            net: labels.map(m => {
+                const d = monthlyMap[m];
+                const iva = d.in * 0.13;
+                const fijosMes = FIJOS_DATA.reduce((acc, cf) => {
+                    const ini = cf.mes_inicio.substring(0, 7);
+                    const fin = cf.mes_fin ? cf.mes_fin.substring(0, 7) : '9999-12';
+                    return (m >= ini && m <= fin) ? acc + Number(cf.monto) : acc;
+                }, 0);
+                return d.in - iva - (d.outVar + (fijosMes * factor));
+            })
+        };
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Utilidad Real', data: datasets.net, backgroundColor: 'rgba(0, 234, 255, 0.8)', borderRadius: 5, barPercentage: 0.5, order: 2 },
+                    { label: 'Ingresos Brutos', data: datasets.in, backgroundColor: 'rgba(11, 181, 0, 0.8)', borderRadius: 5, barPercentage: 0.9, order: 3 },
+                    { label: 'Tendencia Utilidad', data: datasets.net, type: 'line', borderColor: 'rgba(0, 234, 255, 0.8)', borderWidth: 2, tension: 0.4, order: 1 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false, ticks: { callback: v => '$' + v.toLocaleString() } } } }
+        });
+    }
+
+    function renderConfigList() {
+        const list = document.getElementById('costos-list-render');
+        if (!list) return;
+        list.innerHTML = FIJOS_DATA.map(cf => `
+            <div class="bg-white p-3 rounded-xl flex justify-between items-center shadow-sm border border-slate-100">
+                <div><p class="text-xs font-bold text-slate-700">${cf.nombre}</p><p class="text-[10px] text-slate-400">${cf.mes_inicio}</p></div>
+                <div class="flex items-center gap-4"><span class="font-black text-blue-600 text-sm">$${Number(cf.monto).toLocaleString()}</span>
+                <button onclick="deleteCF(${cf.id})" class="text-red-300 hover:text-red-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div>
+            </div>`).join('');
+    }
+
+    // 4. CRUD Y NAVEGACIÓN
+    async function deleteCF(id) {
+        if(!confirm("¿Eliminar este costo fijo?")) return;
+        await supabaseClient.from('costos_fijos_config').delete().eq('id', id);
+        loadDataFromServer();
+    }
+
+    function setQuickRange(type) {
+        const now = new Date();
+        let fromDate, toDate;
+        const format = (d) => d.toISOString().split('T')[0];
+        const currentYear = 2026; 
+
+        if (type === 'month') {
+            fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        } else if (type === 'custom-month') {
+            const mVal = document.getElementById('month-selector').value;
+            if (!mVal) return;
+            fromDate = new Date(currentYear, parseInt(mVal) - 1, 1);
+            toDate = new Date(currentYear, parseInt(mVal), 0);
+        } else if (type === 'year') {
+            fromDate = new Date(currentYear, 0, 1);
+            toDate = new Date(currentYear, 11, 31);
+        } else {
+            fromDate = new Date(2025, 0, 1);
+            toDate = now;
+        }
+        document.getElementById('date-from').value = format(fromDate);
+        document.getElementById('date-to').value = format(toDate);
+        loadDataFromServer();
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById(tabId).classList.remove('hidden');
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('bg-white', 'shadow-sm', 'text-blue-600'));
+        const activeBtn = document.getElementById('btn-' + tabId);
+        if (activeBtn) activeBtn.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date();
+        document.getElementById('date-from').value = `2026-01-01`;
+        document.getElementById('date-to').value = today.toISOString().split('T')[0];
+        loadDataFromServer();
+    });
+</script>
+</body>
+</html>
