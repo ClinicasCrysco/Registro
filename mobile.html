@@ -50,10 +50,7 @@
                     <p class="text-[9px] font-bold text-slate-400 uppercase">Utilidad Neta</p>
                     <h2 id="kpi-neta" class="text-xl font-black text-emerald-600">$0.00</h2>
                 </div>
-                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">IVA (13%)</p>
-                    <h2 id="kpi-iva" class="text-xl font-black text-orange-500">$0.00</h2>
-                </div>
+                
             </div>
 
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
@@ -205,7 +202,6 @@
         // Actualizar KPIs en pantalla
         document.getElementById('kpi-ingresos').innerText = `$${totalIn.toLocaleString(undefined, {minimumFractionDigits:2})}`;
         document.getElementById('kpi-gastos').innerText = `$${totalGastos.toLocaleString(undefined, {minimumFractionDigits:2})}`;
-        document.getElementById('kpi-iva').innerText = `-$${iva.toLocaleString(undefined, {minimumFractionDigits:2})}`;
         
         const netaEl = document.getElementById('kpi-neta');
         netaEl.innerText = `$${neta.toLocaleString(undefined, {minimumFractionDigits:2})}`;
