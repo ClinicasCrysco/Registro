@@ -65,6 +65,15 @@
                     </select>
                 </div>
 
+                <!-- Método de Pago -->
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Método de Pago</label>
+                    <select id="metodo_pago_id" class="w-full mt-1 bg-slate-50 border border-slate-200 p-3 rounded-xl text-sm font-bold text-slate-600 outline-none appearance-none cursor-pointer" required>
+                        <option value="1">Efectivo</option>
+                        <option value="2">Transferencia</option>
+                    </select>
+                </div>
+
                 <!-- Descripción -->
                 <div>
                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Comentarios (Opcional)</label>
@@ -85,8 +94,38 @@
         const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
         const CATEGORIAS = {
-            ingreso: ["FONAT", "MAPFRE", "RPN", "ASESUISA", "PALIG", "Coaseguro", "Redes Sociales", "Referidos", "Particulares", "Pacientes Empresariales", "Venta de Productos", "Otro"],
-            egreso: ["Salarios", "Alquiler", "Impuestos", "Créditos", "Prestaciones", "Servicios Profesionales", "Cuentas por Pagar", "Marketing", "Internet", "Recibos", "Pautas", "Bonos", "Comisiones", "Insumos", "Inversiones", "Varios"]
+            ingreso: [
+                { id: 1, nombre: "FONAT" },
+                { id: 2, nombre: "MAPFRE" },
+                { id: 3, nombre: "RPN" },
+                { id: 4, nombre: "ASESUISA" },
+                { id: 5, nombre: "PALIG" },
+                { id: 6, nombre: "Coaseguro" },
+                { id: 7, nombre: "Redes Sociales" },
+                { id: 8, nombre: "Referidos" },
+                { id: 9, nombre: "Particulares" },
+                { id: 10, nombre: "Pacientes Empresariales" },
+                { id: 11, nombre: "Venta Productos" },
+                { id: 12, nombre: "Otro" }
+            ],
+            egreso: [
+                { id: 13, nombre: "Salarios" },
+                { id: 14, nombre: "Alquiler" },
+                { id: 15, nombre: "Impuestos" },
+                { id: 16, nombre: "Créditos" },
+                { id: 17, nombre: "Prestaciones" },
+                { id: 18, nombre: "Servicios Profesionales" },
+                { id: 19, nombre: "Cuentas por Pagar" },
+                { id: 20, nombre: "Marketing" },
+                { id: 21, nombre: "Internet" },
+                { id: 22, nombre: "Recibos" },
+                { id: 23, nombre: "Pautas" },
+                { id: 24, nombre: "Bonos" },
+                { id: 25, nombre: "Comisiones" },
+                { id: 26, nombre: "Insumos" },
+                { id: 27, nombre: "Inversiones" },
+                { id: 28, nombre: "Varios" }
+            ]
         };
 
         function setMode(mode) {
@@ -122,7 +161,7 @@
 
         function renderCategories(mode) {
             const select = document.getElementById('categoria');
-            select.innerHTML = CATEGORIAS[mode].map(cat => `<option value="${cat}">${cat}</option>`).join('');
+            select.innerHTML = CATEGORIAS[mode].map(cat => `<option value="${cat.id}">${cat.nombre}</option>`).join('');
         }
 
         document.getElementById('transaction-form').addEventListener('submit', async (e) => {
@@ -138,7 +177,8 @@
                 monto: parseFloat(document.getElementById('monto').value),
                 sucursal_id: parseInt(document.getElementById('sucursal_id').value),
                 fecha: document.getElementById('fecha').value,
-                categoria: document.getElementById('categoria').value,
+                categoria_id: parseInt(document.getElementById('categoria').value),
+                metodo_pago_id: parseInt(document.getElementById('metodo_pago_id').value),
                 descripcion: document.getElementById('descripcion').value
             };
 
